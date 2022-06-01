@@ -23,6 +23,7 @@ export const makeSocket = (config: SocketConfig) => {
 		connectTimeoutMs,
 		logger,
 		keepAliveIntervalMs,
+		connectionLostTimeoutMs,
 		browser,
 		auth: authState,
 		printQRInTerminal,
@@ -333,7 +334,9 @@ export const makeSocket = (config: SocketConfig) => {
 		if(!ws.isClosed && !ws.isClosing) {
 			try {
 				ws.close()
-			} catch{ }
+			} catch(wsError) {
+				logger.error({ wsError }, 'Error in close socker')
+			}
 		}
 
 		ev.emit('connection.update', {
@@ -379,13 +382,14 @@ export const makeSocket = (config: SocketConfig) => {
 
 			const diff = Date.now() - lastDateRecv.getTime()
 			/*
-				check if it's been a suspicious amount of time since the server responded with our last seen
-				it could be that the network is down
-			*/
-			if(diff > keepAliveIntervalMs + 5000) {
+                check if it's been a suspicious amount of time since the server responded with our last seen
+                it could be that the network is down
+            */
+			if(diff > (connectionLostTimeoutMs || 120_000) + 5_000) {
 				end(new Boom('Connection was lost', { statusCode: DisconnectReason.connectionLost }))
 			} else if(ws.isOpen) {
 				// if its all good, send a keep alive request
+				logger.info({ lastDateRecv, keepAliveIntervalMs, connectionLostTimeoutMs }, 'ping server')
 				query(
 					{
 						tag: 'iq',
@@ -397,10 +401,13 @@ export const makeSocket = (config: SocketConfig) => {
 						},
 						content: [{ tag: 'ping', attrs: {} }]
 					}
-				)
-					.catch(err => {
-						logger.error({ trace: err.stack }, 'error in sending keep alive')
-					})
+				).then((frame) => {
+					logger.info({ frame, lastDateRecv }, 'pong server')
+					// redundant but apparently necessary line.
+					lastDateRecv = new Date()
+				}).catch(err => {
+					logger.error({ trace: err.stack }, 'error in sending keep alive')
+				})
 			} else {
 				logger.warn('keep alive called when WS not open')
 			}
