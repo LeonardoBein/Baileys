@@ -4,8 +4,9 @@ import { URL } from 'url'
 import { promisify } from 'util'
 import { proto } from '../../WAProto'
 import { DEF_CALLBACK_PREFIX, DEF_TAG_PREFIX, INITIAL_PREKEY_COUNT, MIN_PREKEY_COUNT, MOBILE_ENDPOINT, MOBILE_NOISE_HEADER, MOBILE_PORT, NOISE_WA_HEADER } from '../Defaults'
-import { DisconnectReason, SocketConfig } from '../Types'
 import { addTransactionCapability, bindWaitForConnectionUpdate, configureSuccessfulPairing, Curve, generateLoginNode, generateMdTagPrefix, generateMobileNode, generateRegistrationNode, getCodeFromWSError, getErrorCodeFromStreamError, getNextPreKeysNode, makeNoiseHandler, printQRIfNecessaryListener, promiseTimeout } from '../Utils'
+import WaCache from '../Utils/cache'
+import { DisconnectReason, SocketConfig, GroupMetadataParticipants } from '../Types'
 import { makeEventBuffer } from '../Utils/event-buffer'
 import { assertNodeErrorFree, BinaryNode, binaryNodeToString, encodeBinaryNode, getBinaryNodeChild, getBinaryNodeChildren, S_WHATSAPP_NET } from '../WABinary'
 import { MobileSocketClient, WebSocketClient } from './Client'
@@ -60,6 +61,9 @@ export const makeSocket = (config: SocketConfig) => {
 	// add transaction capability
 	const keys = addTransactionCapability(authState.keys, logger, transactionOpts)
 	const signalRepository = makeSignalRepository({ creds, keys })
+
+	const cacheGroupMetadata = new WaCache<GroupMetadataParticipants>(120_000, {logger} as SocketConfig);
+	ev.on('group-participants.update', (msg) => cacheGroupMetadata.removeCache(msg.id))
 
 	let lastDateRecv: Date
 	let epoch = 1
@@ -325,6 +329,7 @@ export const makeSocket = (config: SocketConfig) => {
 
 		clearInterval(keepAliveReq)
 		clearTimeout(qrTimer)
+		cacheGroupMetadata.stop()
 
 		ws.removeAllListeners('close')
 		ws.removeAllListeners('error')
@@ -385,7 +390,7 @@ export const makeSocket = (config: SocketConfig) => {
                 check if it's been a suspicious amount of time since the server responded with our last seen
                 it could be that the network is down
             */
-			if(diff > (connectionLostTimeoutMs || 120_000) + 5_000) {
+			if(diff > (connectionLostTimeoutMs || keepAliveIntervalMs) + 5_000) {
 				end(new Boom('Connection was lost', { statusCode: DisconnectReason.connectionLost }))
 			} else if(ws.isOpen) {
 				// if its all good, send a keep alive request
@@ -628,6 +633,7 @@ export const makeSocket = (config: SocketConfig) => {
 		uploadPreKeysToServerIfRequired,
 		/** Waits for the connection to WA to reach a state */
 		waitForConnectionUpdate: bindWaitForConnectionUpdate(ev),
+		cacheGroupMetadata,
 	}
 }
 
