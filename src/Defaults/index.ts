@@ -78,6 +78,7 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 		snapshot: false,
 	},
 	getMessage: async() => undefined,
+	sendMessagesAgainDelayMs: 250,
 	makeSignalRepository: makeLibSignalRepository
 }
 
