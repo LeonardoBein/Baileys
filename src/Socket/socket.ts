@@ -62,7 +62,7 @@ export const makeSocket = (config: SocketConfig) => {
 	const keys = addTransactionCapability(authState.keys, logger, transactionOpts)
 	const signalRepository = makeSignalRepository({ creds, keys })
 
-	const cacheGroupMetadata = new WaCache<GroupMetadataParticipants>(120_000, {logger} as SocketConfig);
+	const cacheGroupMetadata = new WaCache<GroupMetadataParticipants>(120_000, { logger } as SocketConfig)
 	ev.on('group-participants.update', (msg) => cacheGroupMetadata.removeCache(msg.id))
 
 	let lastDateRecv: Date
