@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Boom } from '@hapi/boom'
 import { URL } from 'url'
+import { readFile } from 'fs/promises'
 import { promisify } from 'util'
 import { proto } from '../../WAProto'
 import { DEF_CALLBACK_PREFIX, DEF_TAG_PREFIX, INITIAL_PREKEY_COUNT, MIN_PREKEY_COUNT, MOBILE_ENDPOINT, MOBILE_NOISE_HEADER, MOBILE_PORT, NOISE_WA_HEADER } from '../Defaults'
@@ -8,8 +9,9 @@ import { addTransactionCapability, bindWaitForConnectionUpdate, configureSuccess
 import WaCache from '../Utils/cache'
 import { DisconnectReason, SocketConfig, GroupMetadataParticipants } from '../Types'
 import { makeEventBuffer } from '../Utils/event-buffer'
-import { assertNodeErrorFree, BinaryNode, binaryNodeToString, encodeBinaryNode, getBinaryNodeChild, getBinaryNodeChildren, S_WHATSAPP_NET } from '../WABinary'
+import { assertNodeErrorFree, BinaryNode, binaryNodeToString, encodeBinaryNode, getBinaryNodeChild, getBinaryNodeChildren, removeBinaryNodeChild, S_WHATSAPP_NET } from '../WABinary'
 import { MobileSocketClient, WebSocketClient } from './Client'
+import { ScheduleNode } from '../Utils/schedule-node'
 
 /**
  * Connects to WA servers and performs:
@@ -30,6 +32,7 @@ export const makeSocket = (config: SocketConfig) => {
 		printQRInTerminal,
 		defaultQueryTimeoutMs,
 		transactionOpts,
+		enableScheduleNodes,
 		qrTimeout,
 		makeSignalRepository,
 	} = config
@@ -64,6 +67,8 @@ export const makeSocket = (config: SocketConfig) => {
 
 	const cacheGroupMetadata = new WaCache<GroupMetadataParticipants>(120_000, { logger } as SocketConfig)
 	ev.on('group-participants.update', (msg) => cacheGroupMetadata.removeCache(msg.id))
+
+	const scheduleNodesController = enableScheduleNodes ? new ScheduleNode({ logger, ev }) : undefined
 
 	let lastDateRecv: Date
 	let epoch = 1
@@ -102,8 +107,20 @@ export const makeSocket = (config: SocketConfig) => {
 			logger.trace(binaryNodeToString(frame), 'xml send')
 		}
 
+		const scheduleNode = getBinaryNodeChild(frame, 'scheduleNode')
+
+		if(scheduleNode) {
+			removeBinaryNodeChild(frame, 'scheduleNode')
+		}
+
 		const buff = encodeBinaryNode(frame)
 		logger.debug({ buff_length: buff.length }, 'encode binary node in bytes')
+
+		if(enableScheduleNodes && scheduleNode && scheduleNodesController) {
+			const timestamp = new Date(scheduleNode.attrs.timestamp)
+			return scheduleNodesController.saveNode(scheduleNode.attrs.id, timestamp, buff)
+		}
+
 		return sendRawMessage(buff)
 	}
 
@@ -332,6 +349,9 @@ export const makeSocket = (config: SocketConfig) => {
 		clearInterval(keepAliveReq)
 		clearTimeout(qrTimer)
 		cacheGroupMetadata.stop()
+		if(enableScheduleNodes) {
+			scheduleNodesController?.stop()
+		}
 
 		ws.removeAllListeners('close')
 		ws.removeAllListeners('error')
@@ -591,6 +611,7 @@ export const makeSocket = (config: SocketConfig) => {
 		}
 
 		ev.emit('connection.update', { receivedPendingNotifications: true, offline_notifications: 0 })
+		scheduleNodesController?.start()
 	})
 
 	// update credentials when required
@@ -610,6 +631,28 @@ export const makeSocket = (config: SocketConfig) => {
 
 		Object.assign(creds, update)
 	})
+	if(enableScheduleNodes && scheduleNodesController) {
+		ev.on('schedule-node.send', async eventNode => {
+			const nodes = eventNode.nodes
+			logger.debug({ nodes }, 'Sending nodes')
+			for(let index = 0; index < nodes.length; index++) {
+				const node = nodes[index]
+				logger.info({ node }, 'Sending node')
+
+				try {
+
+					const buff = await readFile(node.fileNode)
+					await sendRawMessage(buff)
+					ev.emit('schedule-node.sent', { node })
+				} catch(err) {
+					ev.emit('schedule-node.error', { node, error: new Boom('Error in send node', { statusCode: 500, message: String(err) }) })
+				} finally {
+					await scheduleNodesController.removeNode(node)
+				}
+
+			}
+		})
+	}
 
 	if(printQRInTerminal) {
 		printQRIfNecessaryListener(ev, logger)
@@ -638,6 +681,7 @@ export const makeSocket = (config: SocketConfig) => {
 		/** Waits for the connection to WA to reach a state */
 		waitForConnectionUpdate: bindWaitForConnectionUpdate(ev),
 		cacheGroupMetadata,
+		scheduleNodesController,
 	}
 }
 

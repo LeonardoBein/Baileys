@@ -77,6 +77,7 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 		patch: false,
 		snapshot: false,
 	},
+	enableScheduleNodes: false,
 	getMessage: async() => undefined,
 	sendMessagesAgainDelayMs: 250,
 	makeSignalRepository: makeLibSignalRepository
