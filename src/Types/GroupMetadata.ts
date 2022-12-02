@@ -28,6 +28,7 @@ export interface GroupMetadata {
     inviteCode?: string
     /** the person who added you */
     author?: string
+    iconImg?: string
 }
 
 
