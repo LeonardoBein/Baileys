@@ -9,13 +9,15 @@ import { GroupMetadata, ParticipantAction } from './GroupMetadata'
 import { Label } from './Label'
 import { LabelAssociation } from './LabelAssociation'
 import { MessageUpsertType, MessageUserPendingUpdate, MessageUserReceiptUpdate, WAMessage, WAMessageKey, WAMessageUpdate } from './Message'
-import { ConnectionState } from './State'
+import { ConfigurationState, ConnectionState } from './State'
 
 export type BaileysEventMap = {
     /** connection state has been updated -- WS closed, opened, connecting etc. */
 	'connection.update': Partial<ConnectionState>
     /** credentials updated -- some metadata, keys or something */
     'creds.update': Partial<AuthenticationCreds>
+    'configuration.set': Partial<ConfigurationState>
+    'configuration.update': Partial<ConfigurationState>
     /** set chats (history sync), everything is reverse chronologically sorted */
     'messaging-history.set': {
         chats: Chat[]
