@@ -212,6 +212,9 @@ export type MiscMessageGenerationOptions = MinimalRelayOptions & {
     ephemeralExpiration?: number | string
     /** timeout for media upload to WA server */
     mediaUploadTimeoutMs?: number
+    /** building waveform in audio file */
+    mediaAudioWaveform?: boolean
+
 }
 export type MessageGenerationOptionsFromContent = MiscMessageGenerationOptions & {
 	userJid: string
@@ -229,6 +232,7 @@ export type MediaGenerationOptions = {
     mediaUploadTimeoutMs?: number
 
     options?: AxiosRequestConfig
+    mediaAudioWaveform?: boolean
 }
 export type MessageContentGenerationOptions = MediaGenerationOptions & {
 	getUrlInfo?: (text: string) => Promise<WAUrlInfo | undefined>
