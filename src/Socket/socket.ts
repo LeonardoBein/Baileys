@@ -416,7 +416,7 @@ export const makeSocket = (config: SocketConfig) => {
 				end(new Boom('Connection was lost', { statusCode: DisconnectReason.connectionLost }))
 			} else if(ws.isOpen) {
 				// if its all good, send a keep alive request
-				logger.info({ lastDateRecv, keepAliveIntervalMs, connectionLostTimeoutMs }, 'ping server')
+				logger.debug({ lastDateRecv, keepAliveIntervalMs, connectionLostTimeoutMs }, 'ping server')
 				query(
 					{
 						tag: 'iq',
@@ -429,7 +429,7 @@ export const makeSocket = (config: SocketConfig) => {
 						content: [{ tag: 'ping', attrs: {} }]
 					}
 				).then((frame) => {
-					logger.info({ frame, lastDateRecv }, 'pong server')
+					logger.debug({ frame, lastDateRecv }, 'pong server')
 					// redundant but apparently necessary line.
 					lastDateRecv = new Date()
 				}).catch(err => {
