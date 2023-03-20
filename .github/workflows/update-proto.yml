@@ -1,0 +1,41 @@
+name: Update WAProto
+
+on:
+  push:
+    branches:
+    - auto-update-proto
+
+jobs:
+  update-proto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install Node
+      uses: actions/setup-node@v1
+      with:
+        node-version: 16.x
+
+    - name: Install packages
+      run: yarn --cwd proto-extract
+    
+    - name: Update WAProto.proto
+      id: wa_proto_updated
+      run: yarn --cwd proto-extract start
+
+    - name: GenerateStatics
+      run: yarn --cwd proto-extract pbjs -t static-module -w commonjs -o ../WAProto/index.js ../WAProto/WAProto.proto   
+
+    - name: GenerateStatics types
+      run: yarn --cwd proto-extract pbts -o ../WAProto/index.d.ts ../WAProto/index.js   
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v4
+      with:
+          commit-message: 'chore: update proto'
+          title: 'Whatsapp WEB change proto'
+          body: ${{join(steps.wa_proto_updated.outputs.*, '\n')}}
+          add-paths: |
+            WAProto/*
