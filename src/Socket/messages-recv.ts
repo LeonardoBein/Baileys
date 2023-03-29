@@ -780,6 +780,15 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					}
 				]
 			)
+		} else {
+			ev.emit(
+				'messages.update',[
+					{
+						key,
+						update: { status: WAMessageStatus.SERVER_ACK }
+					}
+				]
+			)
 		}
 	}
 
