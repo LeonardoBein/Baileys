@@ -1,8 +1,6 @@
 name: Update WAProto
 
-on:
-  schedule:
-  - cron: "10 1 * * 1"
+on: "workflow_dispatch"
 
 jobs:
   update-proto:
@@ -30,10 +28,7 @@ jobs:
         echo "wa_js_url=$WA_JS_URL" >> $GITHUB_OUTPUT
 
     - name: GenerateStatics
-      run: yarn --cwd proto-extract pbjs -t static-module -w commonjs -o ../WAProto/index.js ../WAProto/WAProto.proto   
-
-    - name: GenerateStatics types
-      run: yarn --cwd proto-extract pbts -o ../WAProto/index.d.ts ../WAProto/index.js   
+      run: yarn gen:protobuf --cwd proto-extract   
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v4
