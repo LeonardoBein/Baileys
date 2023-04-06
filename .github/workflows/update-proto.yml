@@ -10,15 +10,18 @@ jobs:
     timeout-minutes: 10
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Install Node
-      uses: actions/setup-node@v1
+      uses: actions/setup-node@v3
       with:
-        node-version: 16.x
+        node-version: 16
 
     - name: Install packages
-      run: yarn --cwd proto-extract
+      run: |
+        git config --global url.https://github.com/.insteadOf git@github.com:
+        yarn
+        yarn --cwd proto-extract
     
     - name: Update WAProto.proto
       id: wa_proto_info
