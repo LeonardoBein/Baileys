@@ -8,6 +8,7 @@
   "dependencies": {
     "acorn": "^6.4.1",
     "acorn-walk": "^6.1.1",
+    "pbjs": "^0.0.14",
     "protobufjs": "^7.2.2",
     "protobufjs-cli": "^1.1.1",
     "request": "^2.88.0",
