@@ -30,7 +30,7 @@ jobs:
         echo "wa_js_url=$WA_JS_URL" >> $GITHUB_OUTPUT
 
     - name: GenerateStatics
-      run: yarn gen:protobuf --cwd proto-extract   
+      run: yarn --cwd proto-extract gen:protobuf    
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v4
