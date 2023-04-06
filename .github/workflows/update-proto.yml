@@ -15,11 +15,10 @@ jobs:
     - name: Install Node
       uses: actions/setup-node@v3
       with:
-        node-version: 16
+        node-version: 16.x
 
     - name: Install packages
       run: |
-        git config --global url.https://github.com/.insteadOf git@github.com:
         yarn
         yarn --cwd proto-extract
     
@@ -33,7 +32,7 @@ jobs:
         echo "wa_js_url=$WA_JS_URL" >> $GITHUB_OUTPUT
 
     - name: GenerateStatics
-      run: yarn gen:protobuf
+      run: yarn gen:protobuf   
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v4
