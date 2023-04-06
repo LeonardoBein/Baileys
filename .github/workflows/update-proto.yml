@@ -18,7 +18,7 @@ jobs:
         node-version: 16.x
 
     - name: Install packages
-      run: yarn --cwd proto-extract
+      run: yarn --cwd proto-extract && yarn
     
     - name: Update WAProto.proto
       id: wa_proto_info
@@ -30,7 +30,7 @@ jobs:
         echo "wa_js_url=$WA_JS_URL" >> $GITHUB_OUTPUT
 
     - name: GenerateStatics
-      run: yarn --cwd proto-extract gen:protobuf    
+      run: yarn gen:protobuf
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v4
