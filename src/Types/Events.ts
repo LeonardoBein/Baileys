@@ -8,6 +8,7 @@ import { Contact } from './Contact'
 import { GroupMetadata, ParticipantAction } from './GroupMetadata'
 import { MessageUpsertType, MessageUserPendingUpdate, MessageUserReceiptUpdate, WAMessage, WAMessageKey, WAMessageUpdate } from './Message'
 import { ConfigurationState, ConnectionState } from './State'
+import { BinaryNode } from '../WABinary'
 
 export type BaileysEventMap = {
     /** connection state has been updated -- WS closed, opened, connecting etc. */
@@ -61,7 +62,7 @@ export type BaileysEventMap = {
     'call': WACallEvent[]
     /**  */
     'schedule-node.send': { nodes: WaScheduleNodeData[] }
-    'schedule-node.sent': { node: WaScheduleNodeData }
+    'schedule-node.sent': { node: WaScheduleNodeData, ack?: BinaryNode }
     'schedule-node.error': { node: WaScheduleNodeData, error: Boom }
 }
 
