@@ -68,7 +68,7 @@ export const makeSocket = (config: SocketConfig) => {
 	const cacheGroupMetadata = new WaCache<GroupMetadataParticipants>(120_000, { logger } as SocketConfig)
 	ev.on('group-participants.update', (msg) => cacheGroupMetadata.removeCache(msg.id))
 
-	const scheduleNodesController = enableScheduleNodes ? new ScheduleNode({ logger, ev }) : undefined
+	const scheduleNodesController = enableScheduleNodes ? new ScheduleNode({ logger, ev, ws }) : undefined
 
 	let lastDateRecv: Date
 	let epoch = 1
@@ -118,7 +118,7 @@ export const makeSocket = (config: SocketConfig) => {
 
 		if(enableScheduleNodes && scheduleNode && scheduleNodesController) {
 			const timestamp = new Date(scheduleNode.attrs.timestamp)
-			return scheduleNodesController.saveNode(scheduleNode.attrs.id, timestamp, buff)
+			return scheduleNodesController.saveNode(scheduleNode.attrs.id, timestamp, buff, frame.attrs.id)
 		}
 
 		return sendRawMessage(buff)

@@ -1,8 +1,11 @@
 import { existsSync, mkdirSync } from 'fs'
 import { readdir, unlink, writeFile } from 'fs/promises'
 import path from 'node:path'
+import WebSocket from 'ws'
 import { Logger } from 'pino'
 import { BaileysBufferableEventEmitter } from './event-buffer'
+import { DEF_TAG_PREFIX } from '../Defaults'
+import { BinaryNode } from '../WABinary'
 
 const pathFile = '/tmp/scheduleNodes'
 
@@ -15,38 +18,40 @@ const matchFileName = (fileName: string) => {
 	return f[f.length - 1].match(/(.+)\-(\d+)\.msg/)
 }
 
-const scheduleNodeSave = async(id: string, timestamp: Date, data: Uint8Array | Buffer) => {
+const scheduleNodeSave = async (id: string, timestamp: Date, data: Uint8Array | Buffer) => {
 	const fileName = createFileName(id, timestamp)
 	await writeFile(fileName, data)
 }
 
-const scheduleNodeGet = async() => {
+const scheduleNodeGet = async () => {
 	return (await readdir(pathFile)).map((f) => `${pathFile}/${f}`)
 }
 
-export interface WaScheduleNodeData{
-    timestamp: Date;
-    id: string;
-    fileNode: string;
+export interface WaScheduleNodeData {
+	timestamp: Date;
+	id: string;
+	fileNode: string;
 };
 
 export class ScheduleNode {
 
 	private _data: WaScheduleNodeData[] = []
 	private _ev?: BaileysBufferableEventEmitter
+	private _ws?: WebSocket
 	private _logger?: Logger
 	private _timer: NodeJS.Timeout
 
-	constructor(config?: {logger: Logger, ev: BaileysBufferableEventEmitter}) {
+	constructor(config?: { logger: Logger, ev: BaileysBufferableEventEmitter, ws: WebSocket }) {
 		if (!existsSync(pathFile)) {
 			mkdirSync(pathFile, { recursive: true })
 		}
 		this._logger = config?.logger
 		this._ev = config?.ev
+		this._ws = config?.ws
 		scheduleNodeGet().then((files) => {
 			files.map((file) => {
 				const d = this.parseFileName(file)
-				if(d) {
+				if (d) {
 					this._data.push(d)
 				}
 			})
@@ -61,7 +66,7 @@ export class ScheduleNode {
 	private parseFileName(file: string): WaScheduleNodeData | undefined {
 		const groups = matchFileName(file)
 
-		if(!groups) {
+		if (!groups) {
 			return
 		}
 
@@ -74,8 +79,8 @@ export class ScheduleNode {
 	}
 
 	private _nodeIsReady(c: WaScheduleNodeData): boolean {
-    	const now = new Date()
-    	return now > c.timestamp
+		const now = new Date()
+		return now > c.timestamp
 	}
 
 
@@ -83,13 +88,13 @@ export class ScheduleNode {
 		return this._data
 	}
 
-	async saveNode(id: string, timestamp: Date, data: Uint8Array | Buffer) {
+	async saveNode(id: string, timestamp: Date, data: Uint8Array | Buffer, msgId: string) {
 
-		if(isNaN(timestamp.getTime())) {
+		if (isNaN(timestamp.getTime())) {
 			throw new Error('Timestamp invalid in ScheduleNode')
 		}
 
-		if(!id) {
+		if (!id) {
 			throw new Error('ID invalid in ScheduleNode')
 		}
 
@@ -98,7 +103,9 @@ export class ScheduleNode {
 			id,
 			fileNode: createFileName(id, timestamp)
 		}
+		const ackNode: BinaryNode = { tag: 'ack-cache', attrs: {} }
 		await scheduleNodeSave(id, timestamp, data)
+		this._ws?.emit(`${DEF_TAG_PREFIX}${msgId}`, ackNode)
 		this._logger?.info({ node }, 'Save node')
 		this._data.push(node)
 	}
@@ -107,13 +114,13 @@ export class ScheduleNode {
 
 		const nodeIndex = this._data.findIndex((n) => n.id === node.id)
 
-		if(nodeIndex > -1) {
+		if (nodeIndex > -1) {
 			this._data.splice(nodeIndex, 1)
 		}
 
 		try {
 			await unlink(node.fileNode)
-		} catch(err) {
+		} catch (err) {
 			this._logger?.error({ err }, 'Error in unlink file')
 		}
 
@@ -121,7 +128,7 @@ export class ScheduleNode {
 
 	async removeAll() {
 		this._data = []
-		for(const file of await readdir(pathFile)) {
+		for (const file of await readdir(pathFile)) {
 			await unlink(path.join(pathFile, file))
 		}
 	}
@@ -135,12 +142,12 @@ export class ScheduleNode {
 
 	private _checkNodeReady() {
 		const nodes = this._getNodeReady()
-		if(nodes.length) {
+		if (nodes.length) {
 			this._ev?.emit('schedule-node.send', { nodes })
 		}
 	}
 
 	stop() {
-    	clearInterval(this._timer)
+		clearInterval(this._timer)
 	}
 }
