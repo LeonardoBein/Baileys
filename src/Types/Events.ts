@@ -48,6 +48,7 @@ export type BaileysEventMap = {
     'messages.upsert': { messages: WAMessage[], type: MessageUpsertType }
     /** message was reacted to. If reaction was removed -- then "reaction.text" will be falsey */
     'messages.reaction': { key: WAMessageKey, reaction: proto.IReaction }[]
+    'messages.retry': { key: WAMessageKey, ids: string[], retryNode: BinaryNode }[]
 
     'message-receipt.update': MessageUserReceiptUpdate[]
 

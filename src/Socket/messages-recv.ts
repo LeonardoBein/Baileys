@@ -513,6 +513,14 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		}
 	}
 
+	const sendMessagesAgainEvent = async(
+		key: proto.IMessageKey,
+		ids: string[],
+		retryNode: BinaryNode
+	) => {
+		ev.emit('messages.retry', [ { key, ids, retryNode } ])
+	}
+
 	const handleReceipt = async(node: BinaryNode) => {
 		const { attrs, content } = node
 		const isNodeFromMe = areJidsSameUser(attrs.participant || attrs.from, authState.creds.me?.id)
@@ -538,91 +546,96 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			ids.push(...items.map(i => i.attrs.id))
 		}
 
-		await Promise.all([
-			processingMutex.mutex(
-				async() => {
-					const status = getStatusFromReceiptType(attrs.type)
-					if(
-						typeof status !== 'undefined' &&
-						(
-							// basically, we only want to know when a message from us has been delivered to/read by the other person
-							// or another device of ours has read some messages
-							status > proto.WebMessageInfo.Status.DELIVERY_ACK ||
-							!isNodeFromMe
-						)
-					) {
-						if(isJidGroup(remoteJid)) {
-							const receipts: MessageUserReceiptUpdate[] = []
-							const participantsBatch = getBinaryNodeChildren(node, 'participants')
-							const updateKey: keyof MessageUserReceipt = status === proto.WebMessageInfo.Status.DELIVERY_ACK ? 'receiptTimestamp' : 'readTimestamp'
-							
-							if(attrs.participant) {
-								ids.map(id =>  receipts.push({
-									key: { ...key, id },
-									receipt: {
-										userJid: jidNormalizedUser(attrs.participant),
-										[updateKey]: +attrs.t
-									}
-								}))
-							}
-							if (participantsBatch.length > 0) {
-								participantsBatch.map((participants) => {
-									const idMessage = participants.attrs.key;
-									const users = getBinaryNodeChildren(participants, 'user')
-									users.map((user) => {
-										const userJid = user.attrs.jid;
-										receipts.push({
-											key: { ...key, id: idMessage, participant: userJid },
-											receipt: {
-												userJid: jidNormalizedUser(userJid),
-												[updateKey]: +user.attrs.t
-											}
-										})
+		const successMessageAck = await processingMutex.mutex<boolean>(
+			async() => {
+				const status = getStatusFromReceiptType(attrs.type)
+				if(
+					typeof status !== 'undefined' &&
+					(
+						// basically, we only want to know when a message from us has been delivered to/read by the other person
+						// or another device of ours has read some messages
+						status > proto.WebMessageInfo.Status.DELIVERY_ACK ||
+						!isNodeFromMe
+					)
+				) {
+					if(isJidGroup(remoteJid)) {
+						const receipts: MessageUserReceiptUpdate[] = []
+						const participantsBatch = getBinaryNodeChildren(node, 'participants')
+						const updateKey: keyof MessageUserReceipt = status === proto.WebMessageInfo.Status.DELIVERY_ACK ? 'receiptTimestamp' : 'readTimestamp'
+						
+						if(attrs.participant) {
+							ids.map(id =>  receipts.push({
+								key: { ...key, id },
+								receipt: {
+									userJid: jidNormalizedUser(attrs.participant),
+									[updateKey]: +attrs.t
+								}
+							}))
+						}
+						if (participantsBatch.length > 0) {
+							participantsBatch.map((participants) => {
+								const idMessage = participants.attrs.key;
+								const users = getBinaryNodeChildren(participants, 'user')
+								users.map((user) => {
+									const userJid = user.attrs.jid;
+									receipts.push({
+										key: { ...key, id: idMessage, participant: userJid },
+										receipt: {
+											userJid: jidNormalizedUser(userJid),
+											[updateKey]: +user.attrs.t
+										}
 									})
 								})
-								
-							}
-
-							if (receipts.length > 0) {
-								ev.emit('message-receipt.update', receipts)
-							}
-						} else {
-							ev.emit(
-								'messages.update',
-								ids.map(id => ({
-									key: { ...key, id },
-									update: { status }
-								}))
-							)
+							})
+							
 						}
-					}
 
-					if(attrs.type === 'retry') {
-						// correctly set who is asking for the retry
-						key.participant = key.participant || attrs.from
-						const retryNode = getBinaryNodeChild(node, 'retry')
-						if(willSendMessageAgain(ids[0], key.participant)) {
-							if(key.fromMe) {
-								try {
-									logger.debug({ attrs, key }, 'recv retry request')
-									await sendMessagesAgain(key, ids, retryNode!)
-									if(sendMessagesAgainDelayMs) {
-										await delay(sendMessagesAgainDelayMs)
-									}
-								} catch(error) {
-									logger.error({ key, ids, trace: error.stack }, 'error in sending message again')
-								}
-							} else {
-								logger.info({ attrs, key }, 'recv retry for not fromMe message')
-							}
-						} else {
-							logger.info({ attrs, key }, 'will not send message again, as sent too many times')
+						if (receipts.length > 0) {
+							ev.emit('message-receipt.update', receipts)
 						}
+					} else {
+						ev.emit(
+							'messages.update',
+							ids.map(id => ({
+								key: { ...key, id },
+								update: { status }
+							}))
+						)
 					}
 				}
-			),
-			sendMessageAck(node)
-		])
+
+				if(attrs.type === 'retry') {
+					// correctly set who is asking for the retry
+					key.participant = key.participant || attrs.from
+					const retryNode = getBinaryNodeChild(node, 'retry')
+					if(willSendMessageAgain(ids[0], key.participant)) {
+						if(key.fromMe) {
+							try {
+								logger.debug({ attrs, key }, 'recv retry request')
+								await sendMessagesAgainEvent(key, ids, retryNode!)
+								if(sendMessagesAgainDelayMs) {
+									await delay(sendMessagesAgainDelayMs)
+								}
+							} catch(error) {
+								logger.error({ key, ids, trace: error.stack }, 'error in sending message again')
+								return false
+							}
+						} else {
+							logger.info({ attrs, key }, 'recv retry for not fromMe message')
+						}
+					} else {
+						logger.info({ attrs, key }, 'will not send message again, as sent too many times')
+					}
+				}
+
+				return true
+
+			}
+		)
+
+		if (successMessageAck) {
+			await sendMessageAck(node)
+		}
 	}
 
 	const handleNotification = async(node: BinaryNode) => {
