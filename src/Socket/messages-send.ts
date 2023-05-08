@@ -26,6 +26,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		signalRepository,
 		upsertMessage,
 		query,
+		queryV2,
 		fetchPrivacySettings,
 		generateMessageTag,
 		sendNode,
@@ -631,7 +632,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 				logger.info({ msgId }, `sending message to ${participants.length} devices`)
 				try {
-					nodeAck = await query(stanza)
+					nodeAck = await queryV2(stanza)
 				} catch (e) {					
 					if ((e  as Boom)?.output?.statusCode != DisconnectReason.timedOut) {
 						throw e;

@@ -184,6 +184,36 @@ export const makeSocket = ({
 		}
 	}
 
+	/**
+     * Wait for a message with a certain tag to be received
+     * @param tag the message tag to await
+     * @param json query that was sent
+     * @param timeoutMs timeout after which the promise will reject
+     */
+	const waitForMessageV2 = async<T>(msgId: {id: string, participant?: string}, timeoutMs = defaultQueryTimeoutMs) => {
+		let onRecv: (json) => void
+		let onErr: (err) => void
+		try {
+			const result = await promiseTimeout<T>(timeoutMs,
+				(resolve, reject) => {
+					onRecv = resolve
+					onErr = err => {
+						reject(err || new Boom('Connection Closed', { statusCode: DisconnectReason.connectionClosed }))
+					}
+
+					ws.on(`${DEF_TAG_PREFIX}${msgId.id}${msgId.participant || ''}`, onRecv)
+					ws.on('close', onErr) // if the socket closes, you'll never receive the message
+					ws.off('error', onErr)
+				},
+			)
+			return result
+		} finally {
+			ws.off(`${DEF_TAG_PREFIX}${msgId.id}${msgId.participant || ''}`, onRecv!)
+			ws.off('close', onErr!) // if the socket closes, you'll never receive the message
+			ws.off('error', onErr!)
+		}
+	}
+
 	/** send a query, and wait for its response. auto-generates message ID if not provided */
 	const query = async(node: BinaryNode, timeoutMs?: number) => {
 		if(!node.attrs.id) {
@@ -192,6 +222,26 @@ export const makeSocket = ({
 
 		const msgId = node.attrs.id
 		const wait = waitForMessage(msgId, timeoutMs)
+
+		await sendNode(node)
+
+		const result = await (wait as Promise<BinaryNode>)
+		if('tag' in result) {
+			assertNodeErrorFree(result)
+		}
+
+		return result
+	}
+
+	/** send a query, and wait for its response. auto-generates message ID if not provided */
+	const queryV2 = async(node: BinaryNode, timeoutMs?: number) => {
+		if(!node.attrs.id) {
+			node.attrs.id = generateMessageTag()
+		}
+
+		const msgId = node.attrs.id
+		const participant = node.attrs.participant
+		const wait = waitForMessageV2({id: msgId, participant}, timeoutMs)
 
 		await sendNode(node)
 
@@ -298,6 +348,7 @@ export const makeSocket = ({
 			// if it's a binary node
 			if(!(frame instanceof Uint8Array)) {
 				const msgId = frame.attrs.id
+				const participant = frame.attrs.participant || ''
 
 				if(logger.level === 'trace') {
 					logger.trace({ msgId, fromMe: false, frame }, 'communication')
@@ -305,6 +356,9 @@ export const makeSocket = ({
 
 				/* Check if this is a response to a message we sent */
 				anyTriggered = ws.emit(`${DEF_TAG_PREFIX}${msgId}`, frame) || anyTriggered
+				if (participant) {
+					anyTriggered = ws.emit(`${DEF_TAG_PREFIX}${msgId}${participant}`, frame) || anyTriggered
+				}
 				/* Check if this is a response to a message we are expecting */
 				const l0 = frame.tag
 				const l1 = frame.attrs || { }
@@ -638,6 +692,7 @@ export const makeSocket = ({
 		},
 		generateMessageTag,
 		query,
+		queryV2,
 		waitForMessage,
 		waitForSocketOpen,
 		sendRawMessage,
