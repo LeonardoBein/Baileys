@@ -700,6 +700,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		sendReceipts,
 		readMessages,
 		refreshMediaConn,
+		getUSyncDevices,
 	    waUploadToServer,
 		fetchPrivacySettings,
 		sendCallOffer,
