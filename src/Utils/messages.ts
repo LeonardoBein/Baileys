@@ -572,7 +572,12 @@ export const generateWAMessageFromContent = (
 			contextInfo.remoteJid = quoted.key.remoteJid
 		}
 
-		message[key].contextInfo = contextInfo
+		if (typeof message[key] === "string") {
+			message.extendedTextMessage = { contextInfo, text: message[key] }
+			delete message[key]
+		} else {
+			message[key].contextInfo = contextInfo
+		}
 	}
 
 	if(
