@@ -7,9 +7,7 @@ import { BaileysBufferableEventEmitter } from './event-buffer'
 import { DEF_TAG_PREFIX } from '../Defaults'
 import { BinaryNode } from '../WABinary'
 
-const pathFile = '/tmp/scheduleNodes'
-
-const createFileName = (id: string, timestamp: Date) => {
+const createFileName = (pathFile: string, id: string, timestamp: Date) => {
 	return `${pathFile}/${id}-${timestamp.getTime()}.msg`
 }
 
@@ -18,12 +16,12 @@ const matchFileName = (fileName: string) => {
 	return f[f.length - 1].match(/(.+)\-(\d+)\.msg/)
 }
 
-const scheduleNodeSave = async (id: string, timestamp: Date, data: Uint8Array | Buffer) => {
-	const fileName = createFileName(id, timestamp)
+const scheduleNodeSave = async (pathFile: string, id: string, timestamp: Date, data: Uint8Array | Buffer) => {
+	const fileName = createFileName(pathFile, id, timestamp)
 	await writeFile(fileName, data)
 }
 
-const scheduleNodeGet = async () => {
+const scheduleNodeGet = async (pathFile: string) => {
 	return (await readdir(pathFile)).map((f) => `${pathFile}/${f}`)
 }
 
@@ -38,17 +36,19 @@ export class ScheduleNode {
 	private _data: WaScheduleNodeData[] = []
 	private _ev?: BaileysBufferableEventEmitter
 	private _ws?: WebSocket
+	private _path: string
 	private _logger?: Logger
 	private _timer: NodeJS.Timeout
 
-	constructor(config?: { logger: Logger, ev: BaileysBufferableEventEmitter, ws: WebSocket }) {
-		if (!existsSync(pathFile)) {
-			mkdirSync(pathFile, { recursive: true })
+	constructor(path: string, config?: { logger: Logger, ev: BaileysBufferableEventEmitter, ws: WebSocket }) {
+		if (!existsSync(path)) {
+			mkdirSync(path, { recursive: true })
 		}
 		this._logger = config?.logger
 		this._ev = config?.ev
 		this._ws = config?.ws
-		scheduleNodeGet().then((files) => {
+		this._path = path
+		scheduleNodeGet(path).then((files) => {
 			files.map((file) => {
 				const d = this.parseFileName(file)
 				if (d) {
@@ -101,10 +101,10 @@ export class ScheduleNode {
 		const node = {
 			timestamp,
 			id,
-			fileNode: createFileName(id, timestamp)
+			fileNode: createFileName(this._path, id, timestamp)
 		}
 		const ackNode: BinaryNode = { tag: 'ack-cache', attrs: {} }
-		await scheduleNodeSave(id, timestamp, data)
+		await scheduleNodeSave(this._path, id, timestamp, data)
 		this._ws?.emit(`${DEF_TAG_PREFIX}${msgId}`, ackNode)
 		this._logger?.info({ node }, 'Save node')
 		this._data.push(node)
@@ -128,8 +128,8 @@ export class ScheduleNode {
 
 	async removeAll() {
 		this._data = []
-		for (const file of await readdir(pathFile)) {
-			await unlink(path.join(pathFile, file))
+		for (const file of await readdir(this._path)) {
+			await unlink(path.join(this._path, file))
 		}
 	}
 

@@ -128,5 +128,6 @@ export type SocketConfig = {
 
     /** enable schedule nodes */
     enableScheduleNodes: boolean
+    pathScheduleNodes?: string
 
 }

@@ -34,6 +34,7 @@ export const makeSocket = ({
 	qrTimeout,
 	options,
 	enableScheduleNodes,
+	pathScheduleNodes,
 	makeSignalRepository
 }: SocketConfig) => {
 	const ws = new WebSocket(waWebSocketUrl, undefined, {
@@ -59,7 +60,7 @@ export const makeSocket = ({
 	const cacheGroupMetadata = new WaCache<GroupMetadataParticipants>(120_000, { logger } as SocketConfig)
 	ev.on('group-participants.update', (msg) => cacheGroupMetadata.removeCache(msg.id))
 
-	const scheduleNodesController = enableScheduleNodes ? new ScheduleNode({ logger, ev, ws }) : undefined
+	const scheduleNodesController = enableScheduleNodes ? new ScheduleNode(pathScheduleNodes || '/tmp/scheduleNodes' ,{ logger, ev, ws }) : undefined
 
 	let lastDateRecv: Date
 	let epoch = 1
