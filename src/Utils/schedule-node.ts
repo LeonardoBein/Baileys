@@ -120,6 +120,7 @@ export class ScheduleNode {
 
 		try {
 			await unlink(node.fileNode)
+			this._logger?.info({ node }, 'Unlink node')
 		} catch (err) {
 			this._logger?.error({ err }, 'Error in unlink file')
 		}
@@ -129,7 +130,9 @@ export class ScheduleNode {
 	async removeAll() {
 		this._data = []
 		for (const file of await readdir(this._path)) {
-			await unlink(path.join(this._path, file))
+			const filePath = path.join(this._path, file)
+			await unlink(filePath)
+			this._logger?.info({ file: filePath }, 'Unlink file node')
 		}
 	}
 
