@@ -102,6 +102,7 @@ export type AnyMediaMessageContent = (
     | ({
         video: WAMediaUpload
         caption?: string
+        ptv?: boolean
         gifPlayback?: boolean
         jpegThumbnail?: string
     } & Mentionable & Buttonable & Templatable & WithDimensions)

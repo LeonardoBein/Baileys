@@ -121,6 +121,13 @@ export const prepareWAMessageMedia = async(
 		uploadData.mimetype = MIMETYPE_MAP[mediaType]
 	}
 
+	let keyMessageType = `${mediaType}Message`
+	if ('video' in message) {
+		if(message.ptv){
+			keyMessageType = 'ptvMessage'
+		}
+	}
+
 	// check for cache hit
 	if(cacheableKey) {
 		const mediaBuff = options.mediaCache!.get<Buffer>(cacheableKey)
@@ -128,9 +135,8 @@ export const prepareWAMessageMedia = async(
 			logger?.debug({ cacheableKey }, 'got media cache hit')
 
 			const obj = WAProto.Message.decode(mediaBuff)
-			const key = `${mediaType}Message`
 
-			Object.assign(obj[key], { ...uploadData, media: undefined })
+			Object.assign(obj[keyMessageType], { ...uploadData, media: undefined })
 
 			return obj
 		}
@@ -212,7 +218,7 @@ export const prepareWAMessageMedia = async(
 		)
 
 	const obj = WAProto.Message.fromObject({
-		[`${mediaType}Message`]: MessageTypeProto[mediaType].fromObject(
+		[keyMessageType]: MessageTypeProto[mediaType].fromObject(
 			{
 				url: mediaUrl,
 				directPath,
