@@ -34,6 +34,7 @@ export interface WaScheduleNodeData {
 export class ScheduleNode {
 
 	private _data: WaScheduleNodeData[] = []
+	private _isRunning: boolean = false
 	private _ev?: BaileysBufferableEventEmitter
 	private _ws?: WebSocket
 	private _path: string
@@ -60,6 +61,7 @@ export class ScheduleNode {
 	}
 
 	start() {
+		this._isRunning = true
 		this._timer = setInterval(this._checkNodeReady.bind(this), 1_000)
 	}
 
@@ -86,6 +88,10 @@ export class ScheduleNode {
 
 	get nodes() {
 		return this._data
+	}
+
+	get isRunning() {
+		return this._isRunning;
 	}
 
 	async saveNode(id: string, timestamp: Date, data: Uint8Array | Buffer, msgId: string) {
@@ -151,6 +157,7 @@ export class ScheduleNode {
 	}
 
 	stop() {
+		this._isRunning = false
 		clearInterval(this._timer)
 	}
 }
