@@ -226,6 +226,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			const identityNode = getBinaryNodeChild(node, 'identity')
 			if(identityNode) {
 				logger.info({ jid: from }, 'identity changed')
+				ev.emit('identity.change', { jid: from })
 				// not handling right now
 				// signal will override new identity anyway
 			} else {

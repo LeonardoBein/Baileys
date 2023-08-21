@@ -65,6 +65,8 @@ export type BaileysEventMap = {
     'schedule-node.send': { nodes: WaScheduleNodeData[] }
     'schedule-node.sent': { node: WaScheduleNodeData, ack?: BinaryNode }
     'schedule-node.error': { node: WaScheduleNodeData, error: Boom }
+
+    'identity.change': { jid: string }
 }
 
 export type BufferedEventData = {
