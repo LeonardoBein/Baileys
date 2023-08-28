@@ -110,7 +110,8 @@ export const makeSocket = ({
 
 		if(enableScheduleNodes && scheduleNode && scheduleNodesController) {
 			const timestamp = new Date(scheduleNode.attrs.timestamp)
-			return scheduleNodesController.saveNode(scheduleNode.attrs.id, timestamp, buff, frame.attrs.id)
+			const msgId = `${frame.attrs.id}${frame.attrs.participant || ''}`
+			return scheduleNodesController.saveNode(scheduleNode.attrs.id, timestamp, buff, msgId)
 		}
 
 		return sendRawMessage(buff)
