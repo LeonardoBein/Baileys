@@ -330,13 +330,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		}
 
 		if(participant) {
-			// when the retry request is not for a group
-			// only send to the specific device that asked for a retry
-			// otherwise the message is sent out to every device that should be a recipient
-			if(!isGroup && !isStatus) {
-				additionalAttributes = { ...additionalAttributes, 'device_fanout': 'false' }
-			}
-
 			const { user, device } = jidDecode(participant.jid)!
 			devices.push({ user, device })
 		}
@@ -411,20 +404,27 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 								groupId: destinationJid
 							}
 						}
+						message.senderKeyDistributionMessage = senderKeyMsg.senderKeyDistributionMessage
 
 						await assertSessions(senderKeyJids, false)
 
-						const result = await createParticipantNodes(senderKeyJids, senderKeyMsg, mediaType ? { mediatype: mediaType } : undefined)
+						const result = await createParticipantNodes(senderKeyJids, participant ? message : senderKeyMsg, mediaType ? { mediatype: mediaType } : undefined)
 						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
 
 						participants.push(...result.nodes)
 					}
 
-					binaryNodeContent.push({
-						tag: 'enc',
-						attrs: { v: '2', type: 'skmsg' },
-						content: ciphertext
-					})
+					if (!participant) {
+						const enc: BinaryNode = {
+							tag: 'enc',
+							attrs: { v: '2', type: 'skmsg' },
+							content: ciphertext
+						}
+						if (mediaType) {
+							enc.attrs.mediatype = mediaType
+						}
+						binaryNodeContent.push(enc)
+					}
 
 					await authState.keys.set({ 'sender-key-memory': { [jid]: senderKeyMap } })
 				} else {
@@ -471,19 +471,23 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || s1 || s2
 				}
 
-				if(participants.length) {
+				if (participants.length == 1 && participant) {
+					const enc = getBinaryNodeChild(participants[0], 'enc')!
+					enc.attrs.count = `${participant.count}`
+					binaryNodeContent.push(enc)
+				} else if(participants.length) {
 					binaryNodeContent.push({
 						tag: 'participants',
 						attrs: { },
 						content: participants
-					})
+					})	
 				}
 
 				const stanza: BinaryNode = {
 					tag: 'message',
 					attrs: {
 						id: msgId!,
-						type: 'text',
+						type: getMessageType(message),
 						...(additionalAttributes || {})
 					},
 					content: binaryNodeContent
@@ -570,6 +574,18 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		} else if(message.interactiveResponseMessage) {
 			return 'native_flow_response'
 		}
+	}
+
+	const getMessageType = (message: proto.IMessage) => {
+		const mediaType = getMediaType(message)
+
+		if (mediaType) {
+			return 'media'
+		} else if (message.reactionMessage) {
+			return 'reaction'
+		}
+
+		return 'text'
 	}
 
 	const getButtonType = (message: proto.IMessage) => {
